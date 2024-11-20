@@ -1,0 +1,419 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Scan Image Viewer</title>
+    <style>
+        body {
+            margin: 0;
+            padding: 0;
+            font-family: Arial, sans-serif;
+            background-color: #f0f0f0;
+        }
+        .image-grid {
+            width: 100%;
+            height: 100vh;
+            display: grid;
+            grid-template-columns: repeat(6, 1fr);
+            gap: 10px;
+            padding: 20px;
+            box-sizing: border-box;
+            background-image: url('/api/background');
+            background-size: contain;
+            background-position: center;
+            background-repeat: no-repeat;
+        }
+        .image-container {
+            position: absolute;
+            width: 14%;
+            padding-bottom: 13.5%;
+            border: 2px solid rgb(248, 246, 246);
+            background-color: rgba(255, 255, 255, 0.1);
+            border-radius: 5px;
+            z-index: 10;
+            overflow: visible;
+        }
+        .image-container img {
+            width: 100%;
+            height: auto;
+            display: block;
+        }
+        .scan-number {
+            position: absolute;
+            top: -33px;
+            left: 50%;
+            transform: translateX(-50%) rotate(-180deg);
+            background-color: rgb(245, 9, 9);
+            color: white;
+            padding: 3px 8px;
+            font-weight: bold;
+            border-radius: 3px;
+            font-size: 1.2vw;
+            white-space: nowrap;
+            z-index: 30;
+            text-shadow: 1px 1px 2px rgba(0,0,0,0.5);
+            box-shadow: 0 2px 4px rgba(0,0,0,0.2);
+            min-width: max-content;
+        }
+        h1 {
+            margin: 10px 0;
+            text-align: center;
+            color: #333;
+        }
+        .modal {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(0, 0, 0, 0.9);
+            z-index: 1000;
+            cursor: pointer;
+        }
+
+        .modal-content {
+            max-width: 100%;
+            max-height: 100vh;
+            margin: auto;
+            display: block;
+            position: fixed;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            transition: transform 0.3s ease;
+        }
+        
+        #scan-1 { left: 56.5%; top: 56%; transform: rotate(-180deg)} 
+        #scan-2 { left: 40.6%; top: 56%; transform: rotate(-180deg)}
+        #scan-3 { left: 24.9%; top: 56%; transform: rotate(-180deg)}
+        #scan-4 { left: 24.9%; top: 21.5%; transform: rotate(-180deg)}
+        #scan-5 { left: 40.6%; top: 21.5%; transform: rotate(-180deg)}
+        
+        #scan-6 { left: 56.5%; top: 21.5%; transform: rotate(-180deg)}
+        #scan-7 { left: 13%; top: 50.5%; width: 14.9%; padding-bottom: 9.75%; border: 3px solid rgb(255, 255, 255); border-radius: 8px; transform: rotate(-90deg); clip-path: inset(0 27% 0 17% round 8px); overflow: visible; }
+        #scan-8 { left: 12.5%; top: 34.2%; width: 14.9%; padding-bottom: 8.25%; border: 3px solid rgb(255, 255, 255); border-radius: 8px; transform: rotate(90deg); clip-path: inset(0 25% 0 20% round 8px); overflow: visible; }
+        #scan-9 { left: 0%; top: 0%; }
+        #scan-10 { left: 0%; top: 0%; }
+        .scan-image {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            object-fit: contain;
+            z-index: 11;
+        }
+        #scan-7 .scan-number {
+            transform: translateY(-100px) translateX(-50%) rotate(90deg);
+            left: 25%;
+            top: 50%;
+        }
+
+        #scan-8 .scan-number {
+            transform: translateX(-50%) rotate(-90deg);
+            left: 50%;
+            top: 50%;
+        }
+        /* Add new styles for the overlay boxes */
+        #percorso-7-box, #percorso-8-box {
+            position: absolute;
+            transform-origin: top right;
+            width: 8%;  /* Smaller than the scan boxes */
+            background-color: rgba(255, 255, 255, 0.1);
+            border-radius: 5px;
+            z-index: 15;  /* Above the scan boxes but below the labels */
+            transform: rotate(-180deg)
+        }
+
+        #percorso-7-box {
+            left: 5.5%;  /* Centered over scan-7 */
+            top: 70.5%;
+        }
+
+        #percorso-8-box {
+            left: 5.5%;  /* Centered over scan-8 */
+            top: 34.5%;
+        }
+
+        /* Adjust scan-7 and scan-8 z-index to be behind the new boxes */
+        #scan-7, #scan-8 {
+            z-index: 5;
+        }
+    </style>
+</head>
+<body>
+    <h1>Scan Images</h1>
+
+    <div class="image-grid" id="imageGrid">
+        <!-- Images will be populated by JavaScript -->
+    </div>
+
+    <div id="imageModal" class="modal">
+        <img class="modal-content" id="modalImage">
+    </div>
+
+    <script>
+        // Add these variables at the top of your script
+        let currentImages = [];
+        const REFRESH_INTERVAL = 20000; // 20 seconds
+        
+        // Add auto-refresh functionality
+        setInterval(() => {
+            console.log('Auto-refreshing...');
+            loadImages();
+        }, REFRESH_INTERVAL);
+
+        // Add this function to create initial loading state
+        function showLoadingState() {
+            const imageGrid = document.getElementById('imageGrid');
+            imageGrid.innerHTML = '';
+            
+            // Create 10 loading placeholders
+            for (let i = 1; i <= 10; i++) {
+                const container = document.createElement('div');
+                container.className = 'image-container';
+                container.innerHTML = `
+                    <div style="background-color: white; aspect-ratio: 1; width: 100%;">
+                        <div class="scan-number">PERCORSO ${i} - Loading...</div>
+                    </div>
+                `;
+                imageGrid.appendChild(container);
+            }
+        }
+
+        // Add the padNumber function
+        function padNumber(num) {
+            return num.toString().padStart(8, '0');  // This will pad numbers to 8 digits (00000005)
+        }
+
+        async function checkImageExists(percorso, scanNum) {
+            const paddedNumber = padNumber(scanNum);
+            const fileName = `FrameResults-OP20-PERCORSO_${percorso}-Scan${paddedNumber}.jpg`;
+            
+            return new Promise((resolve) => {
+                // Specific watcher for ERR_FILE_NOT_FOUND
+                // error handler to be fixed, at the moment it tries to load the image and it generates an error
+                const networkErrorHandler = (event) => {
+                    if (event.message?.includes('Failed to load resource:') || 
+                        event.error?.message?.includes('net::ERR_FILE_NOT_FOUND')) {
+                        event.preventDefault();
+                        event.stopPropagation();
+                        resolve({ exists: false });
+                        return true;
+                    }
+                };
+
+                // Add network error listener
+                window.addEventListener('error', networkErrorHandler, true);
+
+                const img = new Image();
+                img.onload = () => {
+                    window.removeEventListener('error', networkErrorHandler, true);
+                    resolve({ exists: true, src: fileName });
+                };
+                
+                img.onerror = () => {
+                    window.removeEventListener('error', networkErrorHandler, true);
+                    resolve({ exists: false });
+                };
+
+                img.src = fileName;
+            });
+        }
+
+        async function findHighestScanForPercorso1() {
+            console.log('Searching for highest scan number in PERCORSO_1');
+            let highestScan = null;
+            let lastFound = -1;
+            let step = 10; // Start with larger steps
+            
+            while (step >= 1) {
+                console.log(`Searching with step size: ${step}`);
+                let found = false;
+                
+                // Search in current step size
+                for (let scanNum = 0; scanNum <= 100; scanNum += step) {
+                    const result = await checkImageExists(1, scanNum);
+                    if (result.exists) {
+                        lastFound = scanNum;
+                        found = true;
+                    } else if (lastFound !== -1) {
+                        break;
+                    }
+                }
+                
+                if (found) {
+                    // Search precisely around the last found scan
+                    for (let scanNum = lastFound + step - 1; scanNum >= lastFound; scanNum--) {
+                        const result = await checkImageExists(1, scanNum);
+                        if (result.exists) {
+                            highestScan = {
+                                scanNum: scanNum,
+                                src: result.src
+                            };
+                            return highestScan;
+                        }
+                    }
+                }
+                
+                // If nothing found, reduce step size and try again
+                step = Math.floor(step / 2);
+            }
+            
+            console.log('No scans found for PERCORSO_1');
+            return null;
+        }
+
+        async function loadImages() {
+            console.clear();
+            console.log('Starting loadImages function');
+            showLoadingState();
+            
+            try {
+                // Add headers and credentials to the fetch request
+                const response = await fetch('http://localhost:8000/api/scans', {
+                    method: 'GET',
+                    headers: {
+                        'Accept': 'application/json',
+                        'Content-Type': 'application/json'
+                    },
+                    credentials: 'same-origin'
+                });
+                
+                if (!response.ok) {
+                    throw new Error(`HTTP error! status: ${response.status}`);
+                }
+                
+                const scans = await response.json();
+                console.log('Received scans from API:', scans);
+                
+                // Transform API data to match our existing format
+                const loadedImages = scans.map(scan => ({
+                    src: `http://localhost:8000${scan.imagePath}`,
+                    scanNumber: scan.scanNumber,
+                    percorsoNumber: scan.percorsoNumber
+                }));
+
+                currentImages = loadedImages;
+                console.log('Transformed images:', loadedImages);
+                
+                updateDisplay(loadedImages);
+                
+            } catch (error) {
+                console.error('Error in loadImages:', error);
+                console.error('Error details:', {
+                    message: error.message,
+                    stack: error.stack
+                });
+                updateDisplay([]); // Update display with empty array in case of error
+            }
+        }
+
+        function updateDisplay(images) {
+            const imageGrid = document.getElementById('imageGrid');
+            imageGrid.innerHTML = '';
+
+            // Create the additional boxes first
+            const percorso7Box = document.createElement('div');
+            percorso7Box.id = 'percorso-7-box';
+            const percorso7Label = document.createElement('div');
+            percorso7Label.className = 'scan-number';
+            const percorso7Image = images.find(img => img.percorsoNumber === 7);
+            percorso7Label.textContent = `PERCORSO 7${percorso7Image ? ` - Scan ${percorso7Image.scanNumber}` : ' - No Scan'}`;
+            percorso7Box.appendChild(percorso7Label);
+            imageGrid.appendChild(percorso7Box);
+
+            const percorso8Box = document.createElement('div');
+            percorso8Box.id = 'percorso-8-box';
+            const percorso8Label = document.createElement('div');
+            percorso8Label.className = 'scan-number';
+            const percorso8Image = images.find(img => img.percorsoNumber === 8);
+            percorso8Label.textContent = `PERCORSO 8${percorso8Image ? ` - Scan ${percorso8Image.scanNumber}` : ' - No Scan'}`;
+            percorso8Box.appendChild(percorso8Label);
+            imageGrid.appendChild(percorso8Box);
+
+            // Continue with existing display logic
+            const displaySlots = Array.from({ length: 10 }, (_, i) => {
+                const existingImage = images.find(img => img.percorsoNumber === i + 1);
+                return existingImage || { percorsoNumber: i + 1 };
+            });
+
+            displaySlots.forEach(slot => {
+                const container = document.createElement('div');
+                container.className = 'image-container';
+                container.id = `scan-${slot.percorsoNumber}`;
+                
+                // Only add scan number label if it's not PERCORSO 7 or 8
+                if (slot.percorsoNumber !== 7 && slot.percorsoNumber !== 8) {
+                    const label = document.createElement('div');
+                    label.className = 'scan-number';
+                    // Display the actual number without padding
+                    label.textContent = `PERCORSO ${slot.percorsoNumber}${slot.scanNumber !== undefined ? ` - Scan ${slot.scanNumber}` : ' - No Scan'}`;
+                    container.appendChild(label);
+                }
+                
+                if (slot.src) {
+                    const img = document.createElement('img');
+                    img.src = slot.src;
+                    img.className = 'scan-image';
+                    img.alt = `Scan ${slot.percorsoNumber}`;
+                    
+                    container.appendChild(img);
+                    
+                    container.style.cursor = 'pointer';
+                    container.onclick = function() {
+                        modal.style.display = "block";
+                        modalImg.src = slot.src;
+                        modalImg.style.transform = "translate(-50%, -50%) scale(1)";
+                    }
+                }
+                
+                imageGrid.appendChild(container);
+            });
+        }
+
+        const modal = document.getElementById('imageModal');
+        const modalImg = document.getElementById('modalImage');
+        let isZoomed = false;
+
+        modal.onclick = function() {
+            modal.style.display = "none";
+            modalImg.style.transform = "translate(-50%, -50%) scale(1)";
+            isZoomed = false;
+        }
+
+        // Add this to prevent modal from closing when clicking the image
+        modalImg.onclick = function(e) {
+            e.stopPropagation();
+            if (isZoomed) {
+                modalImg.style.transform = "translate(-50%, -50%) scale(1)";
+                isZoomed = false;
+            } else {
+                modalImg.style.transform = "translate(-50%, -50%) scale(2)";
+                isZoomed = true;
+            }
+        }
+
+        // Add ESC key to close modal
+        document.addEventListener('keydown', function(e) {
+            if (e.key === 'Escape' && modal.style.display === 'block') {
+                modal.style.display = 'none';
+                modalImg.style.transform = "scale(1)";
+                isZoomed = false;
+            }
+        });
+
+        // Call loadImages when page loads
+        document.addEventListener('DOMContentLoaded', loadImages);
+
+        // Add this to help with debugging
+        window.addEventListener('load', () => {
+            console.log('Page loaded, starting image load...');
+            loadImages();
+        });
+    </script>
+
+</body>
+</html> 
