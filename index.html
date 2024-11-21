@@ -6,25 +6,54 @@
     <title>Scan Image Viewer</title>
     <style>
         body {
-            margin: 0;
+            margin: 20px;
             padding: 0;
             font-family: Arial, sans-serif;
             background-color: #f0f0f0;
         }
-        .image-grid {
+
+        .scan-viewer-container {
+            position: relative;
             width: 100%;
             height: 100vh;
+            margin: 20px auto;
+            box-sizing: border-box;
+        }
+
+        .background-image {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background-image: url('/api/background');
+            background-size: contain;
+            background-position: center;
+            background-repeat: no-repeat;
+            z-index: 1;
+        }
+
+        .scan-positions {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            z-index: 2;
+        }
+
+        /* Remove background-image from .image-grid */
+        .image-grid {
+            position: relative;
+            width: 100%;
+            height: 100%;
             display: grid;
             grid-template-columns: repeat(6, 1fr);
             gap: 10px;
             padding: 20px;
             box-sizing: border-box;
-            background-image: url('/api/background');
-            background-size: contain;
-            background-position-y: -100px;
-            background-position-x: center;
-            background-repeat: no-repeat;
         }
+
         .image-container {
             position: absolute;
             width: 14%;
@@ -61,6 +90,10 @@
             margin: 10px 0;
             text-align: center;
             color: #333;
+            position: absolute;
+            width: 100%;
+            top: 10px;
+            z-index: 20;
         }
         .modal {
             display: none;
@@ -93,10 +126,10 @@
         #scan-5 { left: 40.6%; top: 21.5%; transform: rotate(-180deg)}
         
         #scan-6 { left: 56.5%; top: 21.5%; transform: rotate(-180deg)}
-        #scan-7 { left: 13%; top: 50.5%; width: 14.9%; padding-bottom: 9.75%; border: 3px solid rgb(255, 255, 255); border-radius: 8px; transform: rotate(-90deg); clip-path: inset(0 27% 0 17% round 8px); overflow: visible; }
-        #scan-8 { left: 12.5%; top: 34.2%; width: 14.9%; padding-bottom: 8.25%; border: 3px solid rgb(255, 255, 255); border-radius: 8px; transform: rotate(90deg); clip-path: inset(0 25% 0 20% round 8px); overflow: visible; }
-        #scan-9 { left: 80%; top: 50.5%; width: 14.9%; padding-bottom: 9.75%; border: 3px solid rgb(255, 255, 255); border-radius: 8px; transform: rotate(-90deg); clip-path: inset(0 27% 0 17% round 8px); overflow: visible; }
-        #scan-10 { left: 80%; top: 34.2%; width: 14.9%; padding-bottom: 9.75%; border: 3px solid rgb(255, 255, 255); border-radius: 8px; transform: rotate(-90deg); clip-path: inset(0 27% 0 17% round 8px); overflow: visible; }
+        #scan-7 { left: 8%; top: 50.5%; width: 14.9%; padding-bottom: 9.75%; border: 3px solid rgb(255, 255, 255); border-radius: 8px; transform: rotate(-90deg); clip-path: inset(0 27% 0 17% round 8px); overflow: visible; }
+        #scan-8 { left: 8%; top: 34.2%; width: 14.9%; padding-bottom: 8.25%; border: 3px solid rgb(255, 255, 255); border-radius: 8px; transform: rotate(90deg); clip-path: inset(0 25% 0 20% round 8px); overflow: visible; }
+        #scan-9 { left: 77%; top: 50.5%; width: 14.9%; padding-bottom: 9.75%; border: 3px solid rgb(255, 255, 255); border-radius: 8px; transform: rotate(-90deg); clip-path: inset(0 27% 0 17% round 8px); overflow: visible; }
+        #scan-10 { left: 77%; top: 34.2%; width: 14.9%; padding-bottom: 9.75%; border: 3px solid rgb(255, 255, 255); border-radius: 8px; transform: rotate(-90deg); clip-path: inset(0 27% 0 17% round 8px); overflow: visible; }
         .scan-image {
             position: absolute;
             top: 0;
@@ -145,16 +178,19 @@
     </style>
 </head>
 <body>
-    <h1>Scan Images</h1>
-
-    <div style="text-align: center; margin: 10px 0;">
+    <div style="text-align: right; margin: 10px 0;">
         <button onclick="mergeImages()" style="padding: 10px 20px; background-color: #007bff; color: white; border: none; border-radius: 5px; cursor: pointer;">
             Merge All Scans
         </button>
     </div>
 
-    <div class="image-grid" id="imageGrid">
-        <!-- Images will be populated by JavaScript -->
+    <h1>Scan Images</h1>
+
+    <div class="scan-viewer-container">
+        <div class="background-image"></div>
+        <div class="scan-positions" id="imageGrid">
+            <!-- Images will be populated by JavaScript -->
+        </div>
     </div>
 
     <div id="imageModal" class="modal">
@@ -401,7 +437,7 @@
 
         async function mergeImages() {
             try {
-                const response = await fetch('/merge_images', {
+                const response = await fetch('http://localhost:8000/merge_images', {
                     method: 'POST'
                 });
                 const data = await response.json();
