@@ -21,7 +21,8 @@
             box-sizing: border-box;
             background-image: url('/api/background');
             background-size: contain;
-            background-position: center;
+            background-position-y: -100px;
+            background-position-x: center;
             background-repeat: no-repeat;
         }
         .image-container {
@@ -94,8 +95,8 @@
         #scan-6 { left: 56.5%; top: 21.5%; transform: rotate(-180deg)}
         #scan-7 { left: 13%; top: 50.5%; width: 14.9%; padding-bottom: 9.75%; border: 3px solid rgb(255, 255, 255); border-radius: 8px; transform: rotate(-90deg); clip-path: inset(0 27% 0 17% round 8px); overflow: visible; }
         #scan-8 { left: 12.5%; top: 34.2%; width: 14.9%; padding-bottom: 8.25%; border: 3px solid rgb(255, 255, 255); border-radius: 8px; transform: rotate(90deg); clip-path: inset(0 25% 0 20% round 8px); overflow: visible; }
-        #scan-9 { left: 0%; top: 0%; }
-        #scan-10 { left: 0%; top: 0%; }
+        #scan-9 { left: 80%; top: 50.5%; width: 14.9%; padding-bottom: 9.75%; border: 3px solid rgb(255, 255, 255); border-radius: 8px; transform: rotate(-90deg); clip-path: inset(0 27% 0 17% round 8px); overflow: visible; }
+        #scan-10 { left: 80%; top: 34.2%; width: 14.9%; padding-bottom: 9.75%; border: 3px solid rgb(255, 255, 255); border-radius: 8px; transform: rotate(-90deg); clip-path: inset(0 27% 0 17% round 8px); overflow: visible; }
         .scan-image {
             position: absolute;
             top: 0;
@@ -146,6 +147,12 @@
 <body>
     <h1>Scan Images</h1>
 
+    <div style="text-align: center; margin: 10px 0;">
+        <button onclick="mergeImages()" style="padding: 10px 20px; background-color: #007bff; color: white; border: none; border-radius: 5px; cursor: pointer;">
+            Merge All Scans
+        </button>
+    </div>
+
     <div class="image-grid" id="imageGrid">
         <!-- Images will be populated by JavaScript -->
     </div>
@@ -183,96 +190,42 @@
             }
         }
 
-        // Add the padNumber function
-        function padNumber(num) {
-            return num.toString().padStart(8, '0');  // This will pad numbers to 8 digits (00000005)
-        }
-
-        async function checkImageExists(percorso, scanNum) {
-            const paddedNumber = padNumber(scanNum);
-            const fileName = `FrameResults-OP20-PERCORSO_${percorso}-Scan${paddedNumber}.jpg`;
-            
-            return new Promise((resolve) => {
-                // Specific watcher for ERR_FILE_NOT_FOUND
-                // error handler to be fixed, at the moment it tries to load the image and it generates an error
-                const networkErrorHandler = (event) => {
-                    if (event.message?.includes('Failed to load resource:') || 
-                        event.error?.message?.includes('net::ERR_FILE_NOT_FOUND')) {
-                        event.preventDefault();
-                        event.stopPropagation();
-                        resolve({ exists: false });
-                        return true;
-                    }
-                };
-
-                // Add network error listener
-                window.addEventListener('error', networkErrorHandler, true);
-
-                const img = new Image();
-                img.onload = () => {
-                    window.removeEventListener('error', networkErrorHandler, true);
-                    resolve({ exists: true, src: fileName });
-                };
-                
-                img.onerror = () => {
-                    window.removeEventListener('error', networkErrorHandler, true);
-                    resolve({ exists: false });
-                };
-
-                img.src = fileName;
-            });
-        }
-
         async function findHighestScanForPercorso1() {
-            console.log('Searching for highest scan number in PERCORSO_1');
-            let highestScan = null;
-            let lastFound = -1;
-            let step = 10; // Start with larger steps
-            
-            while (step >= 1) {
-                console.log(`Searching with step size: ${step}`);
-                let found = false;
-                
-                // Search in current step size
-                for (let scanNum = 0; scanNum <= 100; scanNum += step) {
-                    const result = await checkImageExists(1, scanNum);
-                    if (result.exists) {
-                        lastFound = scanNum;
-                        found = true;
-                    } else if (lastFound !== -1) {
-                        break;
-                    }
+            try {
+                const response = await fetch('http://localhost:8000/api/highest-scan/1');
+                if (!response.ok) {
+                    throw new Error('Network response was not ok');
                 }
-                
-                if (found) {
-                    // Search precisely around the last found scan
-                    for (let scanNum = lastFound + step - 1; scanNum >= lastFound; scanNum--) {
-                        const result = await checkImageExists(1, scanNum);
-                        if (result.exists) {
-                            highestScan = {
-                                scanNum: scanNum,
-                                src: result.src
-                            };
-                            return highestScan;
-                        }
-                    }
-                }
-                
-                // If nothing found, reduce step size and try again
-                step = Math.floor(step / 2);
+                const data = await response.json();
+                return data.scanNum ? {
+                    scanNum: data.scanNum,
+                    src: data.src
+                } : null;
+            } catch (error) {
+                console.error('Error finding highest scan:', error);
+                return null;
             }
-            
-            console.log('No scans found for PERCORSO_1');
-            return null;
+        }
+
+        // Add these helper functions
+        function logSuccess(msg) {
+            console.log('%c' + msg, 'color: green; font-weight: bold;');
+        }
+
+        function logError(msg) {
+            console.log('%c' + msg, 'color: red; font-weight: bold;');
+        }
+
+        function logInfo(msg) {
+            console.log('%c' + msg, 'color: blue; font-weight: bold;');
         }
 
         async function loadImages() {
-            console.clear();
-            console.log('Starting loadImages function');
+            logInfo('Starting image load...');
             showLoadingState();
             
             try {
-                // Add headers and credentials to the fetch request
+                console.log('Fetching from /api/scans...');
                 const response = await fetch('http://localhost:8000/api/scans', {
                     method: 'GET',
                     headers: {
@@ -282,38 +235,54 @@
                     credentials: 'same-origin'
                 });
                 
+                console.log('Response status:', response.status);
+                
                 if (!response.ok) {
                     throw new Error(`HTTP error! status: ${response.status}`);
                 }
                 
                 const scans = await response.json();
-                console.log('Received scans from API:', scans);
+                console.log('Raw API response:', scans);
                 
-                // Transform API data to match our existing format
-                const loadedImages = scans.map(scan => ({
-                    src: `http://localhost:8000${scan.imagePath}`,
-                    scanNumber: scan.scanNumber,
-                    percorsoNumber: scan.percorsoNumber
-                }));
+                if (!Array.isArray(scans)) {
+                    console.error('API did not return an array:', scans);
+                    return;
+                }
+                
+                const loadedImages = scans.map(scan => {
+                    console.log('Processing scan:', scan);
+                    return {
+                        src: scan.imagePath,
+                        scanNumber: scan.scanNumber,
+                        percorsoNumber: scan.percorsoNumber
+                    };
+                });
 
+                console.log('Processed images:', loadedImages);
                 currentImages = loadedImages;
-                console.log('Transformed images:', loadedImages);
                 
+                console.log('Updating display...');
                 updateDisplay(loadedImages);
                 
             } catch (error) {
                 console.error('Error in loadImages:', error);
-                console.error('Error details:', {
-                    message: error.message,
-                    stack: error.stack
-                });
-                updateDisplay([]); // Update display with empty array in case of error
+                updateDisplay([]);
+            } finally {
+                console.groupEnd(); // Ends the console group
             }
         }
 
         function updateDisplay(images) {
+            console.group('Updating Display');
+            console.log('Received images:', images);
+            
             const imageGrid = document.getElementById('imageGrid');
             imageGrid.innerHTML = '';
+
+            // Log each image being processed
+            images.forEach(img => {
+                console.log(`Processing image: Percorso ${img.percorsoNumber}, Scan ${img.scanNumber}, Path: ${img.src}`);
+            });
 
             // Create the additional boxes first
             const percorso7Box = document.createElement('div');
@@ -356,22 +325,38 @@
                 
                 if (slot.src) {
                     const img = document.createElement('img');
-                    img.src = slot.src;
+                    img.src = slot.src.startsWith('http') ? slot.src : `http://localhost:8000${slot.src}`;
                     img.className = 'scan-image';
                     img.alt = `Scan ${slot.percorsoNumber}`;
+                    
+                    // Add error handling for images
+                    img.onerror = function() {
+                        console.error(`Failed to load image for PERCORSO ${slot.percorsoNumber}`);
+                        img.style.display = 'none';
+                        const errorText = document.createElement('div');
+                        errorText.textContent = 'Image load failed';
+                        errorText.style.color = 'red';
+                        container.appendChild(errorText);
+                    };
+                    
+                    img.onload = function() {
+                        console.log(`Successfully loaded image for PERCORSO ${slot.percorsoNumber}`);
+                    };
                     
                     container.appendChild(img);
                     
                     container.style.cursor = 'pointer';
                     container.onclick = function() {
                         modal.style.display = "block";
-                        modalImg.src = slot.src;
+                        modalImg.src = img.src;
                         modalImg.style.transform = "translate(-50%, -50%) scale(1)";
                     }
                 }
                 
                 imageGrid.appendChild(container);
             });
+
+            console.groupEnd();
         }
 
         const modal = document.getElementById('imageModal');
@@ -413,6 +398,43 @@
             console.log('Page loaded, starting image load...');
             loadImages();
         });
+
+        async function mergeImages() {
+            try {
+                const response = await fetch('/merge_images', {
+                    method: 'POST'
+                });
+                const data = await response.json();
+                
+                if (data.error) {
+                    alert(data.error);
+                    return;
+                }
+                
+                // Open merged image in new tab
+                window.open(data.merged_image_path, '_blank');
+            } catch (error) {
+                console.error('Error merging images:', error);
+                alert('Error merging images. Please try again.');
+            }
+        }
+
+        async function checkImageExists(percorso, scanNum) {
+            try {
+                const response = await fetch(`http://localhost:8000/api/check-image/${percorso}/${scanNum}`);
+                if (!response.ok) {
+                    throw new Error('Network response was not ok');
+                }
+                const data = await response.json();
+                return {
+                    exists: data.exists,
+                    src: data.src
+                };
+            } catch (error) {
+                console.error('Error checking image:', error);
+                return { exists: false };
+            }
+        }
     </script>
 
 </body>
